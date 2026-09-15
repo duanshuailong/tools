@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Mac DHCP 控制台</title>
-  <link rel="stylesheet" href="style.css?v=4" />
+  <link rel="stylesheet" href="style.css?v=18" />
 </head>
 <body>
   <div class="app">
@@ -48,19 +48,34 @@
           <span class="label">地址池</span>
           <strong id="sRange" class="mono">-</strong>
         </div>
+        <div class="metric">
+          <span class="label">剩余可分配</span>
+          <strong id="sFree" class="mono">-</strong>
+        </div>
       </div>
       <div id="warnBox" class="warn-box hidden"></div>
     </section>
 
     <section class="toolbar">
+      <label class="switch-group">
+        <button type="button" class="switch" id="dhcpSwitch" role="switch" aria-checked="false" aria-label="DHCP 开关">
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </button>
+        <span class="switch-text" id="switchText">DHCP 已停止</span>
+      </label>
       <div class="toolbar-group">
-        <button type="button" class="btn primary" id="btnStart">开启 DHCP</button>
-        <button type="button" class="btn danger" id="btnStop">关闭 DHCP</button>
-      </div>
-      <div class="toolbar-group">
-        <button type="button" class="btn" id="btnSetIp">配置网卡 IP</button>
-        <button type="button" class="btn" id="btnInstall">安装 / 应用配置</button>
-        <button type="button" class="btn ghost" id="btnDetect">探测网卡</button>
+        <button type="button" class="btn" id="btnSetIp">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          配置网卡 IP
+        </button>
+        <button type="button" class="btn" id="btnInstall">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          安装 / 应用配置
+        </button>
+        <button type="button" class="btn ghost" id="btnDetect">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          探测网卡
+        </button>
       </div>
     </section>
 
@@ -92,7 +107,10 @@
       <section class="panel">
         <div class="panel-head">
           <h2>已分配 IP</h2>
-          <span class="hint">约每 5 秒刷新</span>
+          <div class="panel-head-actions">
+            <span class="hint">约每 5 秒刷新</span>
+            <button type="button" class="btn danger sm" id="btnClearLeases">清除租约</button>
+          </div>
         </div>
         <div class="table-wrap table-leases">
           <table>
@@ -154,6 +172,18 @@
     </section>
   </div>
   <div id="toast" class="toast hidden"></div>
-  <script src="app.js?v=4"></script>
+
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h3 class="modal-title" id="modalTitle">确认</h3>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="modalCancel">取消</button>
+        <button type="button" class="btn primary" id="modalOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=16"></script>
 </body>
 </html>

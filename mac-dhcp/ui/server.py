@@ -313,6 +313,32 @@ def read_log_tail(path, n=40):
     return "\n".join(lines[-n:])
 
 
+def ip_to_int(ip):
+    """点分 IPv4 → 整数；非法返回 None。"""
+    try:
+        parts = str(ip).strip().split(".")
+        if len(parts) != 4:
+            return None
+        n = 0
+        for p in parts:
+            v = int(p)
+            if v < 0 or v > 255:
+                return None
+            n = n * 256 + v
+        return n
+    except Exception:
+        return None
+
+
+def pool_size(start, end):
+    """地址池可分配总数（含首尾）；范围非法返回 0。"""
+    a = ip_to_int(start)
+    b = ip_to_int(end)
+    if a is None or b is None or b < a:
+        return 0
+    return b - a + 1
+
+
 def get_status():
     env = load_env()
     iface = env.get("INTERFACE", "")
@@ -351,6 +377,13 @@ def get_status():
         "dns": env.get("DNS_SERVERS", ""),
         "lease_count": len(leases),
         "active_leases": sum(1 for r in leases if r["active"]),
+        "pool_total": pool_size(env.get("RANGE_START", ""), env.get("RANGE_END", "")),
+        "pool_used": sum(1 for r in leases if r["active"]),
+        "pool_free": max(
+            0,
+            pool_size(env.get("RANGE_START", ""), env.get("RANGE_END", ""))
+            - sum(1 for r in leases if r["active"]),
+        ),
         "warnings": warnings,
         "env": env,
         "ifaces": list_interfaces(),
@@ -431,6 +464,7 @@ class Handler(SimpleHTTPRequestHandler):
                 "install": ["install"],
                 "setip": ["setip"],
                 "detect": ["detect"],
+                "clearleases": ["clear-leases"],
             }
             if action not in mapping:
                 return self._json(400, {"ok": False, "error": "未知操作"})

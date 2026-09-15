@@ -644,6 +644,7 @@ cmd_status() {
   for f in "${SYS_LOG}/dnsmasq.err.log" "${SYS_LOG}/dnsmasq.log"; do
     [[ -f "$f" && -s "$f" ]] && { echo "日志 $f:"; tail -n 3 "$f" | sed 's/^/  /'; }
   done
+  return 0   # 纯展示函数：退出码无意义，避免末尾 for 判断为假时误返回 1（会被 UI 误判为失败）
 }
 
 cmd_leases() {
@@ -656,6 +657,39 @@ cmd_leases() {
   fi
   printf "%-16s %-20s %-12s %s\n" "IP" "MAC" "HOST" "EXPIRY"
   awk 'NF>=4 && $1!~/^#/{printf "%-16s %-20s %-12s %s\n",$3,$2,$4,$1}' "$LEASES_DB"
+}
+
+cmd_clear_leases() {
+  need_root
+  local was_running=0
+  pgrep -x dnsmasq >/dev/null && was_running=1
+
+  info "清除 DHCP 租约历史…"
+  # dnsmasq 把租约缓存在内存，必须先停服务再清文件，否则内存会把旧租约回写覆盖
+  if [[ "$was_running" == 1 ]]; then
+    service_loaded && { launchctl bootout "system/${LABEL}" 2>/dev/null || launchctl unload "$LAUNCHD" 2>/dev/null || true; }
+    pgrep -lf dnsmasq 2>/dev/null | grep -q "${SYS_ETC}/dnsmasq.conf" \
+      && pkill -f "dnsmasq.*${SYS_ETC}/dnsmasq.conf" 2>/dev/null || true
+    sleep 0.3
+  fi
+
+  # 清空租约库（保留文件，权限不变）
+  if [[ -f "$LEASES_DB" ]]; then
+    : > "$LEASES_DB" 2>/dev/null || true
+    chmod 644 "$LEASES_DB" 2>/dev/null || true
+    ok "已清空租约库 ${LEASES_DB}"
+  else
+    warn "租约库不存在（尚未产生租约）：${LEASES_DB}"
+  fi
+  sync_leases_txt
+
+  # 原来在运行则重启，使地址池立即可重新分配
+  if [[ "$was_running" == 1 ]]; then
+    info "重启 DHCP 服务以重新分配地址池…"
+    cmd_start
+  else
+    warn "服务原本未运行；已清空租约。开启 DHCP 后地址池即可重新分配。"
+  fi
 }
 
 cmd_uninstall() {
@@ -753,6 +787,7 @@ usage() {
   关闭 / off / stop   关闭 DHCP 服务（需 sudo）
   status              查看状态
   leases              查看租约
+  clear-leases        清除租约历史并重新分配（需 sudo）
   debug               前台调试（需 sudo）
   uninstall [--purge] 卸载（--purge 清除系统文件）
 
@@ -779,6 +814,7 @@ case "${1:-}" in
   关闭|关机|off|stop|--off|--stop) cmd_stop ;;
   status)              cmd_status ;;
   leases)              cmd_leases ;;
+  clear-leases|clearleases|清除租约|重置租约) cmd_clear_leases ;;
   debug)               cmd_debug ;;
   uninstall)           shift; cmd_uninstall "${1:-}" ;;
   *)                   usage; exit 1 ;;

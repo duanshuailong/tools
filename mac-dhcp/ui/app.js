@@ -14,6 +14,41 @@ function toast(msg, type = "ok") {
   }, 3200);
 }
 
+// 自定义确认弹窗，返回 Promise<boolean>；支持 title/正文纯文本或 HTML、危险确认按钮
+function confirmDialog(opts) {
+  const o = typeof opts === "string" ? { body: opts } : opts || {};
+  const overlay = $("modal");
+  const okBtn = $("modalOk");
+  const cancelBtn = $("modalCancel");
+  $("modalTitle").textContent = o.title || "确认";
+  const bodyEl = $("modalBody");
+  if (o.html) bodyEl.innerHTML = o.html;
+  else bodyEl.textContent = o.body || "";
+  okBtn.textContent = o.okText || "确定";
+  cancelBtn.textContent = o.cancelText || "取消";
+  okBtn.className = "btn " + (o.danger ? "danger" : "primary");
+
+  overlay.classList.remove("hidden");
+  okBtn.focus();
+
+  return new Promise((resolve) => {
+    const close = (val) => {
+      overlay.classList.add("hidden");
+      okBtn.onclick = cancelBtn.onclick = overlay.onclick = null;
+      document.removeEventListener("keydown", onKey);
+      resolve(val);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") close(false);
+      else if (e.key === "Enter") close(true);
+    };
+    okBtn.onclick = () => close(true);
+    cancelBtn.onclick = () => close(false);
+    overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+    document.addEventListener("keydown", onKey);
+  });
+}
+
 async function api(path, opts) {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -25,7 +60,7 @@ async function api(path, opts) {
 }
 
 function setBusy(busy) {
-  ["btnStart", "btnStop", "btnSetIp", "btnInstall", "btnDetect", "btnRefresh", "btnLogs"].forEach((id) => {
+  ["dhcpSwitch", "btnSetIp", "btnInstall", "btnDetect", "btnRefresh", "btnLogs", "btnClearLeases"].forEach((id) => {
     const b = $(id);
     if (b) b.disabled = busy;
   });
@@ -51,6 +86,19 @@ function linkLabel(status) {
   return status || "-";
 }
 
+// 大数字用中文万/亿缩写，避免超长换行；小于 1 万照常显示
+function fmtCount(n) {
+  if (n == null || isNaN(n)) return "-";
+  n = Number(n);
+  if (n < 10000) return String(n);
+  if (n < 100000000) {
+    const v = n / 10000;
+    return (v >= 100 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, "")) + "万";
+  }
+  const v = n / 100000000;
+  return (v >= 100 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, "")) + "亿";
+}
+
 function renderStatus(s) {
   setText("clock", s.time || "");
   const badge = $("runBadge");
@@ -63,6 +111,13 @@ function renderStatus(s) {
       badge.className = "badge off";
     }
   }
+  // 同步滑动开关（避免执行中被状态轮询回弹，busy 时不覆盖）
+  const sw = $("dhcpSwitch");
+  if (sw && !sw.disabled) {
+    sw.classList.toggle("on", !!s.running);
+    sw.setAttribute("aria-checked", s.running ? "true" : "false");
+  }
+  setText("switchText", s.running ? "DHCP 运行中" : "DHCP 已停止");
   setText("sIface", s.interface || "-");
   const link = s.iface_status || "-";
   setText("sLink", linkLabel(link));
@@ -78,6 +133,20 @@ function renderStatus(s) {
   const ipEl = $("sIp");
   if (ipEl) ipEl.style.color = s.ip_ok ? "var(--ok)" : "var(--warn)";
   setText("sRange", s.range || "-");
+  const freeEl = $("sFree");
+  if (freeEl) {
+    if (s.pool_total != null) {
+      freeEl.innerHTML =
+        `<span class="free-n">${fmtCount(s.pool_free)}</span>` +
+        `<span class="free-total">共 ${fmtCount(s.pool_total)}</span>`;
+      freeEl.title = `剩余 ${s.pool_free} / 共 ${s.pool_total}`;
+      const nEl = freeEl.querySelector(".free-n");
+      if (nEl) nEl.style.color = (s.pool_free === 0 && s.pool_total > 0) ? "var(--warn)" : "var(--ok)";
+    } else {
+      freeEl.textContent = "-";
+      freeEl.title = "";
+    }
+  }
   setText("sLeases", `${s.active_leases || 0} / ${s.lease_count || 0}`);
   setText("sInstalled", s.installed ? "已安装" : "未安装");
   const instEl = $("sInstalled");
@@ -169,13 +238,19 @@ function renderIfaces(ifaces) {
   });
 }
 
-function pickIface(tr) {
+async function pickIface(tr) {
   const iface = tr.getAttribute("data-iface");
   const service = tr.getAttribute("data-service") || "";
   const wifi = tr.getAttribute("data-wifi") === "1";
   if (!iface) return;
-  if (wifi && !confirm(`「${iface}」是 Wi-Fi，通常不建议开 DHCP（易与现网冲突）。仍要选用？`)) {
-    return;
+  if (wifi) {
+    const ok = await confirmDialog({
+      title: "选用 Wi-Fi 网卡？",
+      body: `「${iface}」是 Wi-Fi，通常不建议开 DHCP（易与现网冲突）。仍要选用？`,
+      okText: "仍然选用",
+      danger: true,
+    });
+    if (!ok) return;
   }
   const form = $("cfgForm");
   form.INTERFACE.value = iface;
@@ -225,10 +300,15 @@ async function doAction(action, label) {
       const st = await api("/api/status");
       const warns = st.warnings || [];
       if (warns.length) {
-        const msg =
-          "当前存在以下问题，仍要开启吗？\n\n- " +
-          warns.join("\n- ");
-        if (!confirm(msg)) return;
+        const ok = await confirmDialog({
+          title: "仍要开启 DHCP 吗？",
+          html:
+            "<p>当前存在以下问题：</p><ul>" +
+            warns.map((w) => `<li>${esc(w)}</li>`).join("") +
+            "</ul>",
+          okText: "仍然开启",
+        });
+        if (!ok) return;
       }
     } catch (_) {}
   }
@@ -238,13 +318,16 @@ async function doAction(action, label) {
       toast("请先填写 INTERFACE / SERVER_IP / NETMASK", "err");
       return;
     }
-    if (
-      !confirm(
-        `将为网卡 ${env.INTERFACE} 配置：\nIP ${env.SERVER_IP}\n掩码 ${env.NETMASK}\n网关 ${env.ROUTER || env.SERVER_IP}\n\n继续？`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: "配置网卡 IP",
+      html:
+        `将为网卡 <strong>${esc(env.INTERFACE)}</strong> 配置：<ul>` +
+        `<li>IP ${esc(env.SERVER_IP)}</li>` +
+        `<li>掩码 ${esc(env.NETMASK)}</li>` +
+        `<li>网关 ${esc(env.ROUTER || env.SERVER_IP)}</li></ul>`,
+      okText: "继续",
+    });
+    if (!ok) return;
   }
   setBusy(true);
   $("output").textContent = `正在执行：${label} …\n（若弹出密码框请输入本机管理员密码）`;
@@ -273,8 +356,34 @@ async function doAction(action, label) {
 }
 
 $("btnRefresh").onclick = refresh;
-$("btnStart").onclick = () => doAction("start", "开启 DHCP");
-$("btnStop").onclick = () => doAction("stop", "关闭 DHCP");
+
+// 滑动开关：点击切换开/关
+$("dhcpSwitch").onclick = async () => {
+  const sw = $("dhcpSwitch");
+  const turningOn = sw.getAttribute("aria-checked") !== "true";
+  // 乐观反馈：先动开关，失败时 refresh 会回弹
+  sw.classList.toggle("on", turningOn);
+  sw.setAttribute("aria-checked", turningOn ? "true" : "false");
+  setText("switchText", turningOn ? "正在开启…" : "正在关闭…");
+  if (turningOn) {
+    await doAction("start", "开启 DHCP");
+  } else {
+    await doAction("stop", "关闭 DHCP");
+  }
+};
+
+$("btnClearLeases").onclick = async () => {
+  const ok = await confirmDialog({
+    title: "清除租约历史",
+    body:
+      "将清除所有已分配的 DHCP 租约历史。\n\n若 DHCP 正在运行会先停后重启，客户端需重新获取地址。\n\n确定清除并重新分配？",
+    okText: "清除并重分配",
+    danger: true,
+  });
+  if (!ok) return;
+  await doAction("clearleases", "清除租约");
+};
+
 $("btnSetIp").onclick = () => doAction("setip", "配置网卡 IP");
 $("btnInstall").onclick = () => doAction("install", "安装 / 应用配置");
 $("btnDetect").onclick = () => doAction("detect", "探测网卡");
