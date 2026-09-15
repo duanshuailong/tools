@@ -1,0 +1,12 @@
+# macOS 系统垃圾
+.DS_Store
+
+# 旧版本脚本，别分发
+dhcp.sh.bak
+
+# 上一台机器的租约记录（owner 可能为 root），新机运行会自动生成
+leases.txt
+
+# 运行时 / 临时产物
+*.log
+/tmp/

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mac DHCP 控制台</title>
+  <link rel="stylesheet" href="style.css?v=4" />
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div>
+        <h1>Mac DHCP</h1>
+        <p class="sub">dnsmasq 本地控制台 · 仅本机 127.0.0.1</p>
+      </div>
+      <div class="top-actions">
+        <span id="clock" class="clock">--</span>
+        <button type="button" class="btn ghost" id="btnRefresh">刷新</button>
+      </div>
+    </header>
+
+    <section class="hero-status" id="heroStatus">
+      <div class="hero-top">
+        <div class="badge" id="runBadge">检测中…</div>
+        <div class="hero-meta">
+          <span class="meta-chip"><span class="meta-k">安装</span><strong id="sInstalled">-</strong></span>
+          <span class="meta-chip"><span class="meta-k">租约</span><strong id="sLeases">-</strong></span>
+        </div>
+      </div>
+      <div class="hero-grid">
+        <div class="metric">
+          <span class="label">网卡</span>
+          <strong id="sIface">-</strong>
+        </div>
+        <div class="metric">
+          <span class="label">链路</span>
+          <strong id="sLink">-</strong>
+        </div>
+        <div class="metric metric-wide">
+          <span class="label">网卡 IP / 期望</span>
+          <strong class="ip-pair">
+            <span id="sIp">-</span>
+            <span class="sep">/</span>
+            <span id="sServerIp" class="muted-strong">-</span>
+          </strong>
+        </div>
+        <div class="metric metric-wide">
+          <span class="label">地址池</span>
+          <strong id="sRange" class="mono">-</strong>
+        </div>
+      </div>
+      <div id="warnBox" class="warn-box hidden"></div>
+    </section>
+
+    <section class="toolbar">
+      <div class="toolbar-group">
+        <button type="button" class="btn primary" id="btnStart">开启 DHCP</button>
+        <button type="button" class="btn danger" id="btnStop">关闭 DHCP</button>
+      </div>
+      <div class="toolbar-group">
+        <button type="button" class="btn" id="btnSetIp">配置网卡 IP</button>
+        <button type="button" class="btn" id="btnInstall">安装 / 应用配置</button>
+        <button type="button" class="btn ghost" id="btnDetect">探测网卡</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>识别到的网卡</h2>
+        <span class="hint">点击选用 · 勿选正在上网的 Wi-Fi</span>
+      </div>
+      <div class="table-wrap">
+        <table class="iface-table">
+          <thead>
+            <tr>
+              <th>Device</th>
+              <th>网络服务</th>
+              <th>Hardware Port</th>
+              <th>IPv4</th>
+              <th>链路</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="ifaceBody">
+            <tr><td colspan="6" class="empty">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>已分配 IP</h2>
+          <span class="hint">约每 5 秒刷新</span>
+        </div>
+        <div class="table-wrap table-leases">
+          <table>
+            <thead>
+              <tr>
+                <th>IP</th>
+                <th>MAC</th>
+                <th>主机名</th>
+                <th>过期</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody id="leaseBody">
+              <tr><td colspan="5" class="empty">暂无租约</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>网络参数</h2>
+          <span class="hint">保存后点「安装」或「配置网卡 IP」</span>
+        </div>
+        <form id="cfgForm" class="form">
+          <fieldset>
+            <legend>网卡</legend>
+            <label><span>INTERFACE <em>设备名</em></span><input name="INTERFACE" autocomplete="off" /></label>
+            <label><span>NETWORK_SERVICE <em>可选</em></span><input name="NETWORK_SERVICE" placeholder="留空自动解析" autocomplete="off" /></label>
+          </fieldset>
+          <fieldset>
+            <legend>本机地址</legend>
+            <label><span>SERVER_IP <em>本机 IP</em></span><input name="SERVER_IP" autocomplete="off" /></label>
+            <label><span>NETMASK <em>掩码</em></span><input name="NETMASK" autocomplete="off" /></label>
+            <label><span>NET_ADDRESS <em>网段</em></span><input name="NET_ADDRESS" autocomplete="off" /></label>
+            <label><span>ROUTER <em>网关</em></span><input name="ROUTER" autocomplete="off" /></label>
+          </fieldset>
+          <fieldset>
+            <legend>DHCP 池</legend>
+            <label><span>RANGE_START <em>起始</em></span><input name="RANGE_START" autocomplete="off" /></label>
+            <label><span>RANGE_END <em>结束</em></span><input name="RANGE_END" autocomplete="off" /></label>
+            <label><span>DNS_SERVERS <em>DNS</em></span><input name="DNS_SERVERS" autocomplete="off" /></label>
+            <label><span>LEASE_TIME <em>租期</em></span><input name="LEASE_TIME" autocomplete="off" /></label>
+          </fieldset>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">保存配置</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>输出 / 日志</h2>
+        <button type="button" class="btn ghost sm" id="btnLogs">拉取日志</button>
+      </div>
+      <pre id="output" class="output">就绪。开启 / 关闭 / 安装会弹出系统管理员密码。
+（包在「桌面」时，提权会自动复制到 /tmp 再执行。）</pre>
+    </section>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js?v=4"></script>
+</body>
+</html>
