@@ -1,0 +1,855 @@
+#cloud-config
+autoinstall:
+  version: 1
+  # 设置语言
+  locale: en_US.UTF-8
+  # 设置时区
+  timezone: Asia/Shanghai
+  keyboard:
+    layout: us
+  # 安装ubuntu服务器版，最小化选择 ubuntu-mini
+  # source:
+    # id: ubuntu-server
+    # search_drivers: false
+  # 网络配置,根据具体接口名称修改。
+  network:
+    version: 2
+    ethernets:
+      all:
+        match:
+          name: "en*"
+        dhcp4: true
+  # 是否安装第三方驱动
+  drivers:
+    install: false
+  # 内核安装，linux-generic 通用内核
+  kernel:
+    package: linux-generic
+  # 设置存储库，这里使用阿里云
+  apt:
+    fallback: offline-install
+    timeout: 1200
+    mirror-selection:
+      primary:
+      - arches: [amd64]
+        uri: http://mirrors.aliyun.com/ubuntu/
+      - arches: [arm64]
+        uri: http://mirrors.aliyun.com/ubuntu-ports
+    preserve_sources_list: false
+  # 配置存储，分区
+  storage:
+    # raid 磁盘分区
+    config:
+    # 分区表
+    # 选择最小容量磁盘模式
+    #- {ptable: gpt, wipe: superblock-recursive, preserve: false, name: '', grub_device: false, id: disk-sda, type: disk, match: {ssd: yes, size: smallest}}
+    #- {ptable: gpt, wipe: superblock-recursive, preserve: false, name: '', grub_device: false, id: disk-sdb, type: disk, match: {ssd: yes, size: smallest}}
+    # 按固定路径选择磁盘
+    #- {ptable: gpt, wipe: superblock-recursive, preserve: false, name: '', grub_device: false, id: disk-sda, type: disk, path: /dev/nvme0n1}
+    #- {ptable: gpt, wipe: superblock-recursive, preserve: false, name: '', grub_device: false, id: disk-sdb, type: disk, path: /dev/nvme1n1}
+    # 按容量范围选择磁盘（路径在 early-commands 第四步替换为真实设备）
+    - {ptable: gpt, wipe: superblock-recursive, preserve: false, name: '', grub_device: false, id: disk-sda, type: disk, path: DISK0}
+    - {ptable: gpt, wipe: superblock-recursive, preserve: false, name: '', grub_device: false, id: disk-sdb, type: disk, path: DISK1}
+    # boot分区
+    - {device: disk-sda, size: 1024M, wipe: superblock, flag: boot, number: 1, preserve: false, grub_device: true, id: partition-0, type: partition}
+    - {fstype: fat32, volume: partition-0, preserve: false, id: format-0, type: format}
+    # efi
+    - {device: disk-sda, size: 1024M, wipe: superblock, number: 2, preserve: false, grub_device: false, id: partition-1, type: partition}
+    - {device: disk-sdb, size: 1024M, wipe: superblock, number: 1, preserve: false, grub_device: false, id: partition-2, type: partition}
+    - {device: disk-sda, size: -1, wipe: superblock, number: 3, preserve: false, grub_device: false, id: partition-3, type: partition}
+    - {device: disk-sdb, size: -1, wipe: superblock, number: 2, preserve: false, grub_device: false, id: partition-4, type: partition}
+    - {name: md0, raidlevel: raid1, devices: [partition-1, partition-2], spare_devices: [], preserve: false, wipe: superblock-recursive, ptable: gpt, id: raid-0, type: raid}
+    - {name: md1, raidlevel: raid1, devices: [partition-3, partition-4], spare_devices: [], preserve: false, wipe: superblock-recursive, ptable: gpt, id: raid-1, type: raid}
+    - {device: raid-1, size: -1, wipe: superblock, number: 1, preserve: false, grub_device: false, id: partition-5, type: partition}
+    - {fstype: ext4, volume: partition-5, preserve: false, id: format-1, type: format}
+    - {path: /, device: format-1, id: mount-1, type: mount}
+    - {device: raid-0, size: -1, wipe: superblock, number: 1, preserve: false, grub_device: false, id: partition-6, type: partition}
+    - {fstype: ext4, volume: partition-6, preserve: false, id: format-2, type: format}
+    - {path: /boot, device: format-2, id: mount-2, type: mount}
+    - {path: /boot/efi, device: format-0, id: mount-0, type: mount}
+
+    # # lvm 盘分区
+    # config:
+    # - {ptable: gpt,  wipe: superblock, preserve: false, name: '', grub_device: false, type: disk, id: disk-sda, match: {size: smallest, install-media: false, rotational: false}}
+    # # - {ptable: gpt,  wipe: superblock, preserve: false, name: '', grub_device: false, type: disk, id: disk-sda, path: /dev/sda}
+    # # - {ptable: gpt,  wipe: superblock, preserve: false, name: '', grub_device: false, type: disk, id: disk-sda, path: /dev/nvme0n1}
+
+    # - {device: disk-sda, size: 1024M, wipe: superblock, flag: boot , number: 1, preserve: false, grub_device: true, type: partition, id: partition-0}
+    # - {fstype: fat32, volume: partition-0, preserve: false, type: format, id: format-0}
+
+    # - {device: disk-sda, size: 2048M, wipe: superblock, number: 2, preserve: false, grub_device: false, type: partition, id: partition-1}
+    # - {fstype: ext4, volume: partition-1, preserve: false, type: format, id: format-1}
+
+    # - {device: disk-sda, size: -1 , wipe: superblock, number: 3, preserve: false, grub_device: false, type: partition, id: partition-2}
+    # - {name: ubuntu-vg, devices: [partition-2], preserve: false, type: lvm_volgroup, id: lvm_volgroup-0}
+    # - {name: ubuntu-lv, volgroup: lvm_volgroup-0, size: -1, wipe: superblock, preserve: false, type: lvm_partition, id: lvm_partition-0}
+    # - {fstype: ext4, volume: lvm_partition-0, preserve: false, type: format, id: format-2}
+
+    # - {device: format-0, path: /boot/efi, type: mount, id: mount-0}
+    # - {device: format-1, path: /boot, type: mount, id: mount-1}
+    # - {device: format-2, path: /, type: mount, id: mount-2}
+  # 配置账号信息
+  identity:
+    hostname: hostname
+    username: user
+    # Datacenter202602
+    # password: '$6$tHwCTpMSOA2gWkNm$43UAB9a0914Snw2Slmm.X1DEdBneAOLJS3F0yySlsiLNG4ASbTXP9n3YjwwTHZ9rU0WqKeB8Mug5ZShh/MRnO1'
+    # 123456
+    # password: '$6$Yb5/Fl6UFW3zVIeD$SSjCpcDkEgKHrxBbMblm7IL0rMT.HgWAavvQnEooVvww3NUPqNTzVHG9rrSONGmv4RoqWvkzXm8iEXS05xsbE0'
+    # Datacenter2026
+    # password: '$6$MgL.9US6P/iMmlgh$lWQDfwnc4oyJ3DcXv6Anh8ypOa4MDeLIRSKnnEdDvgvN7zfYDe1j.SwY2QClJCmuDgXZfG1e7UzTRhJKHGoOC/'
+    # Datacenter@2602
+    # password: '$6$Kp4ztQx6FEqG1IFN$WeTHh1ZS6Hvo7dAnn9BVvKpVTvOk7NCv5U6DyQ1Y23MB/WOcLPc7QPrbhu/tJyPRM6TrxTsI9SioGFcETBJNG.'
+    # 1  (测试密码，明文为 1)
+    password: '$6$AaXJ6vB6deCZWQif$.J05hNShHN57a3tLpqa9NZrjnNMlnKmywnclm818XKJM5.dARmMTlKMjYG5tbYayIDiizN8iGmU3o53f.jmqK/'
+  # ssg 配置
+  ssh:
+    allow-pw: true
+    install-server: true
+  # 软件安装
+  packages:
+    - vim
+    - git
+  early-commands:
+    - mdadm -S /dev/md* || true
+    - mdadm --zero-superblock /dev/sda || true
+    - mdadm --zero-superblock /dev/sdb || true
+    - mdadm --zero-superblock /dev/nvme0n1 || true
+    - mdadm --zero-superblock /dev/nvme1n1 || true
+    - lvremove /dev/ubuntu-vg/ubuntu-lv -f || true
+    - vgremove ubuntu-vg || true
+    - |
+      # 在安装器(源)环境装 ipmitool，用于读 BMC IP。扁平 debs：优先 apt 本地源解依赖，失败回退 dpkg
+      echo "deb [trusted=yes] file:/cdrom/debs ./" > /etc/apt/sources.list.d/offline-cdrom.list
+      apt-get update || true
+      apt-get install -y --no-install-recommends ipmitool || dpkg -i /cdrom/debs/ipmitool_*.deb || true
+      ipmitool lan print 1 > /ipmi.log || true
+      IP=$(ipmitool lan print 1 | grep -v "Source"  | awk "/^IP Address/{print \$4}")
+      #echo $IP > /ip.log
+      LAST_OCTET=$(echo ${IP} | cut -d. -f4)
+      #echo $LAST_OCTET > /last.log
+      #HOSTI=$((LAST_OCTET+1000))
+      sed -i "s/HOSTIP_1/${LAST_OCTET}/g" /autoinstall.yaml
+      sed -i "s/HOSTNAME_1/${LAST_OCTET}/g" /autoinstall.yaml
+    # ══════════════════════════════════════════════════════════════════
+    # 第一步：枚举并选择目标盘（300G–2000G，排除 U 盘和安装介质）
+    # 按总线类型分组（不用 ROTA：SATA SSD 的 ROTA=0，会被误判成 NVMe）
+    #   SATA/SAS/SCSI → /dev/sdX + 分区 sdXN
+    #   NVMe          → /dev/nvmeXn1 + 分区 nvmeXn1pN
+    # 优先级：2 块同容量 SATA/SAS > 2 块同容量 NVMe（不混组 RAID）
+    # 选中的盘写入 /run/target-disks.txt，每行一个真实路径
+    # ══════════════════════════════════════════════════════════════════
+    - |
+      # set -e
+      MIN_GB=300
+      MAX_GB=2000
+      NEED=2
+      LOG()  { echo "[disk-select] $*"; }
+      FAIL() { echo "[disk-select] ERROR: $*" >&2; exit 1; }
+
+      # 检查安装介质：ISO/VFAT/UDF
+      is_install_media() {
+        blkid "$1" 2>/dev/null | grep -qE "iso9660|udf|vfat"
+      }
+
+      # 按 TRAN 识别，TRAN 为空时回退到设备名
+      # sata/sas/ata/scsi → sata（分区名 /dev/sdX1）
+      # nvme              → nvme（分区名 /dev/nvmeXn1p1）
+      disk_kind() {
+        local name=$1 tran=$2
+        case "$tran" in
+          nvme) echo nvme; return ;;
+          sata|sas|ata|scsi) echo sata; return ;;
+        esac
+        case "$name" in
+          nvme*) echo nvme ;;
+          sd*)   echo sata ;;
+          *)     echo unknown ;;
+        esac
+      }
+
+      LOG "===== 第一步：选择目标硬盘 ====="
+
+      > /run/target-disks.txt
+      > /run/disk-candidates.txt
+      > /run/disk-sata.txt
+      > /run/disk-nvme.txt
+
+      # 逐行枚举所有裸盘（写入临时文件，避免管道子 shell）
+      # 字段: NAME SIZE RM TRAN
+      lsblk -d --bytes --noheadings -o NAME,SIZE,RM,TRAN 2>/dev/null > /run/lsblk-disks.txt
+      while read -r name size_b rm tran; do
+        [ -z "$name" ] && continue
+        dev="/dev/$name"
+        [ -b "$dev" ] || continue
+
+        # ── 过滤条件 ──
+        # 1. 排除可移动设备（U 盘/移动硬盘）
+        [ "$rm" = "1" ] && LOG "  排除 (可移动): $dev" && continue
+        # 2. 排除 USB 总线设备
+        [ "$tran" = "usb" ] && LOG "  排除 (USB): $dev" && continue
+        # 3. 排除安装介质（ISO/VFAT/UDF）
+        if is_install_media "$dev"; then
+          LOG "  排除 (安装介质): $dev"
+          continue
+        fi
+        # 4. 容量过滤
+        size_gb=${size_b:-0}
+        size_gb=$(( size_gb / 1024 / 1024 / 1024 )) 2>/dev/null || size_gb=0
+        if [ "$size_gb" -lt "$MIN_GB" ] || [ "$size_gb" -gt "$MAX_GB" ]; then
+          LOG "  排除 (容量 ${size_gb}G 不在 ${MIN_GB}G-${MAX_GB}G): $dev"
+          continue
+        fi
+
+        kind=$(disk_kind "$name" "$tran")
+        if [ "$kind" = "unknown" ]; then
+          LOG "  排除 (无法识别总线): $dev  tran=$tran"
+          continue
+        fi
+
+        LOG "  可用: $dev  容量=${size_gb}G  kind=$kind  tran=$tran"
+        echo "$dev|$size_gb|$kind|$tran" >> /run/disk-candidates.txt
+        if [ "$kind" = "sata" ]; then
+          echo "$dev|$size_gb|$kind|$tran" >> /run/disk-sata.txt
+        else
+          echo "$dev|$size_gb|$kind|$tran" >> /run/disk-nvme.txt
+        fi
+      done < /run/lsblk-disks.txt
+
+      # 从分组中取「同容量、数量 >= NEED」的最大容量组
+      pick_same_size() {
+        local group_file=$1
+        local size_gb
+        [ -s "$group_file" ] || return 1
+        size_gb=$(cut -d'|' -f2 "$group_file" | sort -n | uniq -c | \
+                  awk -v n="$NEED" '$1 >= n {print $2}' | sort -n | tail -1)
+        [ -z "$size_gb" ] && return 1
+        grep "|${size_gb}|" "$group_file" | head -n "$NEED"
+      }
+
+      write_targets() {
+        local label=$1
+        local lines=$2
+        > /run/target-disks.txt
+        printf '%s\n' "$lines" > /run/pick-lines.txt
+        while read -r line; do
+          [ -z "$line" ] && continue
+          disk=$(echo "$line" | cut -d'|' -f1)
+          size_gb=$(echo "$line" | cut -d'|' -f2)
+          LOG "选中 ${label} ${size_gb}G: $disk"
+          echo "$disk" >> /run/target-disks.txt
+        done < /run/pick-lines.txt
+      }
+
+      target_sata=$(pick_same_size /run/disk-sata.txt || true)
+      target_nvme=$(pick_same_size /run/disk-nvme.txt || true)
+
+      if [ -n "$target_sata" ]; then
+        write_targets "SATA/SAS" "$target_sata"
+      elif [ -n "$target_nvme" ]; then
+        write_targets "NVMe" "$target_nvme"
+      fi
+
+      disk_count=$(wc -l < /run/target-disks.txt 2>/dev/null || echo 0)
+      disk_count=$(echo "$disk_count" | tr -d ' ')
+      [ -z "$disk_count" ] && disk_count=0
+      [ "$disk_count" -lt "$NEED" ] && FAIL "未找到 2 块相同容量的 SATA/SAS 或 NVMe 硬盘"
+
+      LOG "===== 选中的目标硬盘 ====="
+      while read -r disk; do
+        [ -z "$disk" ] && continue
+        size_b=$(lsblk -bdn -o SIZE "$disk" 2>/dev/null || echo 0)
+        size_gb=$(( size_b / 1024 / 1024 / 1024 )) 2>/dev/null || size_gb=0
+        name=$(basename "$disk")
+        tran=$(lsblk -dn -o TRAN "$disk" 2>/dev/null || true)
+        kind=$(disk_kind "$name" "$tran")
+        LOG "  $disk  ${size_gb}G  $kind  tran=$tran"
+      done < /run/target-disks.txt
+      LOG "========================================="
+
+    # ══════════════════════════════════════════════════════════════════
+    # 第二步：清除选中盘上所有 RAID 痕迹
+    # ══════════════════════════════════════════════════════════════════
+    - |
+      # set -e
+      LOG()  { echo "[raid-clean-disk] $*"; }
+      FAIL() { echo "[raid-clean-disk] ERROR: $*" >&2; exit 1; }
+
+      [ -f /run/target-disks.txt ] || FAIL "/run/target-disks.txt 不存在"
+      disk_count=$(wc -l < /run/target-disks.txt 2>/dev/null || echo 0)
+      [ "$disk_count" -lt 2 ] && FAIL "目标硬盘不足 2 块"
+
+      LOG "===== 第二步：清除选中盘的 RAID 痕迹 ====="
+
+      while read -r disk; do
+        [ -z "$disk" ] && continue
+        [ -b "$disk" ] || { LOG "  $disk 不存在，跳过"; continue; }
+
+        LOG "处理 $disk ..."
+
+        # ── 停止该盘分区参与的 md 阵列 ──
+        for part in "$disk" "${disk}"[0-9]* "${disk}p"[0-9]*; do
+          [ -b "$part" ] || continue
+          # 检查是否属于某个 md（从 /proc/mdstat 找设备名）
+          md_assoc=$(grep -E "$(basename "$part")$" /proc/mdstat 2>/dev/null | awk '{print $1}' | head -1 || true)
+          if [ -n "$md_assoc" ] && [ -b "/dev/$md_assoc" ]; then
+            LOG "  停止 $disk 上的 RAID /dev/$md_assoc ..."
+            mdadm --stop "/dev/$md_assoc" 2>/dev/null || true
+          fi
+        done
+
+        # ── 逐分区清 superblock ──
+        for part in "$disk" "${disk}"[0-9]* "${disk}p"[0-9]*; do
+          [ -b "$part" ] || continue
+          if mdadm --examine "$part" 2>/dev/null | grep -q "Linux.*raid"; then
+            LOG "  清 superblock: $part"
+            mdadm --zero-superblock "$part" 2>/dev/null || true
+          fi
+        done
+
+        # ── 刷新分区表 ──
+        LOG "  刷新分区表: $disk"
+        partprobe "$disk" 2>/dev/null || true
+        LOG "  $disk 清完毕"
+      done < /run/target-disks.txt
+
+      LOG "========================================="
+
+    # ══════════════════════════════════════════════════════════════════
+    # 第三步：清理 md0 / md1（若有其他 RAID 占用了这两个名称，全部清掉）
+    # ══════════════════════════════════════════════════════════════════
+    - |
+      # set -e
+      LOG()  { echo "[raid-clean-md] $*"; }
+
+      LOG "===== 第三步：清理 md0 / md1 ====="
+
+      for md in /dev/md0 /dev/md1; do
+        if [ ! -b "$md" ]; then
+          LOG "  $md 不存在，跳过"
+          continue
+        fi
+
+        LOG "  发现 $md 存在，清空中 RAID ..."
+        members=$(mdadm --detail "$md" 2>/dev/null | \
+                   awk '/\/dev\// && !/^\/dev\/md/ {print $NF}' || true)
+        [ -n "$members" ] && LOG "    成员盘: $members"
+
+        mdadm --stop "$md" 2>/dev/null || true
+
+        for member in $members; do
+          if [ -b "$member" ]; then
+            LOG "    清 superblock: $member"
+            mdadm --zero-superblock "$member" 2>/dev/null || true
+          fi
+        done
+
+        # 强制 kernel 释放 md 编号
+        mdn=$(basename "$md")
+        echo "idle" > "/sys/block/$mdn/md/array_state" 2>/dev/null || true
+        LOG "  $md 清完毕"
+      done
+
+      # 全局扫描：300G-2000G 非安装介质的盘，是否还有 md 残留
+      lsblk -d --bytes --noheadings -o NAME,SIZE 2>/dev/null | while read -r name size_b; do
+        [ -z "$name" ] && continue
+        dev="/dev/$name"
+        size_gb=${size_b:-0}
+        size_gb=$(( size_gb / 1024 / 1024 / 1024 )) 2>/dev/null || continue
+        [ "$size_gb" -lt 300 ] || [ "$size_gb" -gt 2000 ] && continue
+        blkid "$dev" 2>/dev/null | grep -qE "iso9660|vfat|udf" && continue
+        for part in "$dev" "${dev}"[0-9]* "${dev}p"[0-9]*; do
+          [ -b "$part" ] || continue
+          if grep -q "$(basename "$part")" /proc/mdstat 2>/dev/null; then
+            mdname=$(grep "$(basename "$part")" /proc/mdstat | awk '{print $1}' | head -1 || true)
+            if [ -n "$mdname" ] && [ -b "/dev/$mdname" ]; then
+              LOG "  发现残留关联 /dev/$mdname -> $part，一并清理 ..."
+              mdadm --stop "/dev/$mdname" 2>/dev/null || true
+              mdadm --zero-superblock "$part" 2>/dev/null || true
+            fi
+          fi
+        done
+      done
+
+      LOG "========================================="
+      LOG "所有 RAID 清理完成，系统已就绪"
+      LOG "========================================="
+
+    # ══════════════════════════════════════════════════════════════════
+    # 第四步：把 storage.config 中的 DISK0/DISK1 占位符替换为真实路径
+    # ══════════════════════════════════════════════════════════════════
+    - |
+      # set -e
+      LOG()  { echo "[storage-path] $*"; }
+      FAIL() { echo "[storage-path] ERROR: $*" >&2; exit 1; }
+
+      AUTOINSTALL="/autoinstall.yaml"
+      [ -f /run/target-disks.txt ] || FAIL "/run/target-disks.txt 不存在"
+      disk_count=$(wc -l < /run/target-disks.txt 2>/dev/null || echo 0)
+      [ "$disk_count" -lt 2 ] && FAIL "目标硬盘不足 2 块"
+
+      DISK0=$(sed -n '1p' /run/target-disks.txt)
+      DISK1=$(sed -n '2p' /run/target-disks.txt)
+      [ -z "$DISK0" ] || [ -z "$DISK1" ] && FAIL "读取目标硬盘路径失败"
+
+      LOG "disk-sda = $DISK0"
+      LOG "disk-sdb = $DISK1"
+
+      # 路径中含 / 和 &，必须转义；用 # 做 sed 分隔符避免与路径冲突
+      DISK0_ESC=$(echo "$DISK0" | sed 's/[\/&]/\\&/g')
+      DISK1_ESC=$(echo "$DISK1" | sed 's/[\/&]/\\&/g')
+
+      sed -i "s#path: DISK0#path: $DISK0_ESC#g; s#path: DISK1#path: $DISK1_ESC#g" "$AUTOINSTALL"
+      LOG "storage.config 路径替换完成"
+
+
+  late-commands:
+    # ssh 密钥
+    - |
+      curtin in-target --target=/target -- bash -c '
+      mkdir -p /target/root/.ssh || true;
+      echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPmxk5KAgGJOZBwtk8X6ketoLHY2cXNvR7Ucco1FDclM iw@infrawaves" >>/target/root/.ssh/authorized_keys
+      echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDSo0F1nZCVFeQCEUhEBU5Uratw8jyIaFcuR1mRk0Ds6qPu5vSM+w1eCsDU7/R88WeLoi3mgN7eLTAyo3XfY18svsGcLKc+EMKusAxM3SmpSXQCi1MjobkCNu8p2J+/p86nPsGscowrqnRjdhk5tXCurVRxEs5oibsSJsQ3xOjyQ0hsALhmDowcbNN70qdQn/ooUIJiQJJkx1ZmzaRY9f1/90KLnPMnWARxUKrXu39+4n5IkO8z0BZDk7mjqAu5R0iJtGScBsCWKvpRBzMSGdjEthr5jxcqNa+lT0kzGVhFnBIew4V8KWtvhoJO12RIfFOuT0/c1LggB39278l6KVt/w8krDAh3zlB65RBFYSY6nB66Hm3ZI5xZhe17IpVuNkQZXNnghAZo4a9nubfDUMSABgufkKUdsZANs0bXKSRW/wsJ4jODdfXa4m/NIG/jBzMjSY8TVsWqcJBMeRxs1VuIdyYaJxZLiFZd6BUZzR3QyBjeiTgI2wtv6inL1nIinlVhmI8oB9Kw8VUtsqCXoLwojy+MLAQfMW+18HlKSzmamyZZsJzRlcjiCpitgCxRgMWYVHa4qX4T9kLhP6YyQQM6UaS1D+4l1u5zogBASUwz5LiWu03ieCaxl/dQMerq8EJCxGMqXCmNSJ5oguXX/HCwLm51CJCzYEmR0bIHQ/mH/Q== root@cpu11" >>/target/root/.ssh/authorized_keys
+      echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCmbMdYHYdxsI9FKkUVLgVhqcTEtt5rlIBGcls+bC9FbQuFuWOu7ZtqSgR4we+LlRPeqfiFC9CJ8PZuP5bPs3zzNfle0sThwgHPOSXI9/3MO3YVMMix//oE0jxCQUgVi8Qhzm6IiQT/lu8Ds5inWE4k4F8NV8ck/2mFxkBbwDZKYw75cqMfQ+mrPNHKaPU5mIOV/pMX0G1mXV+Zqf7y+qsdl99gN2oEvuRpPQhDXMCY8vnmvPbNDf8VXrIggh1esMSy2CXz3ghQvu3baB6rTMtUk8bHgz6kHgkKV9rQn3aXNb3mL5T8VRO3qNhnCrPObxrlsmkbOBv5F+guFIAGfVHkQTH1J4tNw5yiULO6lSF6YHEfl0md4L/65oT+OseDMV/VbGS79N1OYSbf/EbadEhXo2+JYwMWgDY3jTgUwbMbgP/d5SiB+YnwIbeF+0nTaftweBetw3HQwFcCsHFPCIiGVtPInn+wzBZ3FAOWYKffoU7ATdh4B8D4gfxo6HyAg+8= root@inspur" >>/target/root/.ssh/authorized_keys'
+    # 允许root登录
+    - curtin in-target --target=/target -- sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+    # 修改 sysctl.conf arp内核参数
+    - |
+      curtin in-target --target=/target -- bash -c 'cat > /etc/sysctl.conf <<EOF
+      net.ipv4.conf.all.rp_filter = 0
+      net.ipv4.conf.default.rp_filter = 0
+      net.ipv4.conf.eth2.rp_filter = 0
+      net.ipv4.conf.eth3.rp_filter = 0
+      net.ipv4.conf.bond0.rp_filter = 0
+      net.ipv4.conf.all.arp_announce = 2
+      net.ipv4.conf.all.arp_ignore = 1
+      net.ipv4.conf.default.accept_source_route = 0
+      net.ipv4.conf.default.arp_announce = 2
+      net.ipv4.conf.default.arp_ignore = 1
+      EOF'
+    # ══════════════════════════════════════════════════════════════════
+    # 配置本地离线 APT 源（扁平 debs/ + Packages 索引），用 apt 装包自动解依赖
+    # 取代原来逐目录 dpkg -i（分目录结构已改为扁平）
+    # ══════════════════════════════════════════════════════════════════
+    - |
+      curtin in-target --target=/target -- bash -c '
+      echo "deb [trusted=yes] file:/cdrom/debs ./" > /etc/apt/sources.list.d/offline-cdrom.list
+      apt-get update || true   # 本地源必成功；在线源无网时失败可忽略
+      '
+    # 安装「除 NVIDIA GPU 栈外」的所有离线包（system/build/net/monitor/OFED依赖…）
+    # NVIDIA 相关（fabricmanager/nscq/dcgm/container-toolkit/nvlsm）留到装完驱动后再装
+    - |
+      curtin in-target --target=/target -- bash -c '
+      ALL=$(grep "^Package: " /cdrom/debs/Packages | cut -d" " -f2 | sort -u)
+      SYS=$(echo "$ALL" | grep -viE "^(nvidia-fabricmanager|nvidia-fabricmanager-dev|libnvidia-nscq.*|datacenter-gpu-manager.*|nvidia-container-toolkit.*|libnvidia-container.*|nvlsm)$")
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $SYS
+      '
+    # 使能 lldpd
+    - curtin in-target --target=/target -- systemctl enable lldpd
+    # chrony 时间同步（chrony 已由上面 apt 装好），禁用 systemd-timesyncd
+    - curtin in-target --target=/target -- systemctl disable systemd-timesyncd
+    - curtin in-target --target=/target -- dpkg -r systemd-timesyncd || true
+    # 固定内核版本
+    - curtin in-target --target=/target -- apt-mark hold $(uname -r)
+    # 禁用 apt 自动更新
+    - |
+      curtin in-target --target=/target -- bash -c 'cat > /etc/apt/apt.conf.d/10periodic <<EOF
+      APT::Periodic::Update-Package-Lists "0";
+      APT::Periodic::Download-Upgradeable-Packages "0";
+      APT::Periodic::AutocleanInterval "0";
+      APT::Periodic::Unattended-Upgrade "0";
+      EOF'
+    - |
+      curtin in-target --target=/target -- bash -c 'cat > /etc/apt/apt.conf.d/20auto-upgrades <<EOF
+      APT::Periodic::Update-Package-Lists "0";
+      APT::Periodic::Download-Upgradeable-Packages "0";
+      APT::Periodic::AutocleanInterval "0";
+      APT::Periodic::Unattended-Upgrade "0";
+      EOF'
+    # 写入网络配置到 /etc/netplan/mgmt.yaml.bak
+    - |
+      curtin in-target --target=/target -- bash -c 'cat > /etc/netplan/81-mgmt.yaml <<EOF
+      network:
+        ethernets:
+          eth0:
+            dhcp4: false
+            dhcp6: false
+          eth1:
+            dhcp4: false
+            dhcp6: false
+        bonds:
+          bond0:
+            ignore-carrier: true
+            interfaces: [eth0, eth1]
+            parameters:
+              mode: 802.3ad
+              transmit-hash-policy: layer3+4
+            addresses: [10.226.0.HOSTIP_1/21]
+            routes:
+            - to: default
+              via: 10.226.7.254
+      EOF'
+    # 禁用网络自动配置
+    - |
+      curtin in-target --target=/target -- bash -c "cat <<EOF > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+      network: {config: disabled}
+      EOF"
+    # 写入 rc.local 脚本
+    # - |
+    #   curtin in-target --target=/target -- bash -c 'cat > /etc/rc.local <<"EOSH"
+    #   #!/bin/bash
+    #   LOG_DIR=/var/log/boot-scripts
+    #   LOG_FILE=${LOG_DIR}/name.sh.log
+
+    #   mkdir -p "${LOG_DIR}"
+
+    #   # Disable cloud-init on every boot.
+    #   touch /etc/cloud/cloud-init.disabled
+
+    #   # Load InfiniBand IPoIB and NVIDIA PeerMemory modules.
+    #   modprobe ib_ipoib
+    #   modprobe nvidia_peermem
+    #   service openibd restart
+    #   # Bring up all DOWN network interfaces.
+    #   ip -br link | awk '"'"'$2 == "DOWN" {print $1}'"'"' | cut -d'"'"'@'"'"' -f1 | while read -r iface; do
+    #       echo "$(date): bring up network interface ${iface}" >> "${LOG_DIR}/network.log"
+    #       ip link set up "${iface}"
+    #   done
+
+    #   # Enable NVIDIA GPU persistence mode.
+    #   nvidia-smi -pm 1
+
+    #   # Enable all CPU idle states.
+    #   cpupower idle-set --enable-all
+
+    #   # Set all CPUs to performance governor.
+    #   cpupower -c all frequency-set -g performance >/dev/null || true
+
+    #   # Configure PCIe ACS (Access Control Services).
+    #   for BDF in $(lspci -d "*:*:*" | awk '"'"'{print $1}'"'"'); do
+    #       setpci -v -s "${BDF}" ECAP_ACS+0x6.w >/dev/null 2>&1
+    #       if [ $? -ne 0 ]; then
+    #           continue
+    #       fi
+    #       setpci -v -s "${BDF}" ECAP_ACS+0x6.w=0000
+    #       echo "$(date): configure ACS for BDF ${BDF}" >> "${LOG_DIR}/pci.log"
+    #   done
+
+    #   # Wait for network devices to be ready, then rename by PCI layout.
+    #   sleep 10
+    #   if [ -x /tools/rename_by_pci-asus.sh ]; then
+    #       echo "$(date): run /tools/rename_by_pci-asus.sh" >> "${LOG_DIR}/rename.log"
+    #       bash /tools/rename_by_pci-asus.sh >> "${LOG_DIR}/rename.log" 2>&1
+    #   elif [ -x /tools/rename_by_pci.sh ]; then
+    #       echo "$(date): run /tools/rename_by_pci.sh" >> "${LOG_DIR}/rename.log"
+    #       bash /tools/rename_by_pci.sh >> "${LOG_DIR}/rename.log" 2>&1
+    #   else
+    #       echo "$(date): neither /tools/rename_by_pci-asus.sh nor /tools/rename_by_pci.sh exists or is executable" >> "${LOG_DIR}/rename.log"
+    #   fi
+    #   netplan apply
+    #   exit 0
+    #   EOSH'
+    # - curtin in-target --target=/target -- chmod +x /etc/rc.local
+    # 安装 Mellanox 网卡驱动
+    #- curtin in-target --target=/target -- bash /cdrom/scripts/network_driver.sh
+    # install doca driver
+    #- drom/debs/doca/*.deb
+    # ══ 安装 MLNX_OFED（改为 tgz 方式；原 debs/doca 分目录已取消）══
+    # ⚠ mlnxofedinstall 需编译内核模块，依赖 dkms + linux-headers-$(uname -r)。
+    #   若离线仓库未含 linux-headers，请先补入 debs/ 再重打包，否则模块编译会失败。
+    - |
+      curtin in-target --target=/target -- bash -c '
+      OFED_TGZ=$(ls /cdrom/drivers/MLNX_OFED_LINUX-*.tgz 2>/dev/null | head -1)
+      if [ -n "$OFED_TGZ" ]; then
+        mkdir -p /tmp/ofed
+        tar -xzf "$OFED_TGZ" -C /tmp/ofed --strip-components=1
+        # --force 跳过部分冲突检查；--without-fw-update 装机阶段不刷网卡固件
+        /tmp/ofed/mlnxofedinstall --force --without-fw-update || true
+      fi
+      '
+    # 安装 NVIDIA GPU 驱动
+    #- curtin in-target --target=/target -- bash -c "bash /cdrom/scripts/gpu_driver.sh > /gpu_driver.log 2>&1"
+     # 屏蔽 nouveau + 安装 CUDA(.run, 含驱动) + 配置环境变量
+    - |
+      curtin in-target --target=/target -- bash -c '
+      cat > /etc/modprobe.d/blacklist-nouveau.conf <<"EONV"
+      blacklist nouveau
+      options nouveau modeset=0
+      EONV
+      update-initramfs -u
+
+      CUDA_RUN_FILE=$(ls /cdrom/drivers | grep "^cuda.*run$")
+      CUDA_RUN=/tmp/${CUDA_RUN_FILE}
+      CUDA_ENV_FILE="/etc/profile.d/cuda.sh"
+
+      cp /cdrom/drivers/${CUDA_RUN_FILE} ${CUDA_RUN}
+      # 追加第二部分（拆分包）
+      dd if="/cdrom/drivers/${CUDA_RUN_FILE}_a" of="${CUDA_RUN}" bs=1M oflag=append conv=notrunc
+      # 带驱动静默安装
+      bash ${CUDA_RUN} --silent --toolkit --driver --override-driver-check | tee /cuda_install.log
+
+      echo "===== 配置CUDA环境变量 ====="
+      cat > ${CUDA_ENV_FILE} << EOF
+      export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda/lib64
+      export PATH=\$PATH:/usr/local/cuda/bin
+      export CUDA_HOME=/usr/local/cuda
+      EOF
+      chmod 644 ${CUDA_ENV_FILE}
+      source ${CUDA_ENV_FILE}
+      '
+    # ══ 装完 CUDA 驱动后再装 NVIDIA GPU 栈（fabricmanager/nscq/dcgm/container-toolkit）══
+    # 走本地 apt 源（前面已配置），自动解依赖；缺包用 || true 不阻断安装
+    - |
+      curtin in-target --target=/target -- bash -c '
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        nvidia-fabricmanager nvidia-fabricmanager-dev \
+        nvidia-container-toolkit nvidia-container-toolkit-base \
+        libnvidia-container1 libnvidia-container-tools \
+        nvlsm || true
+      # DCGM（包名以实际为准：grep -i datacenter-gpu-manager /cdrom/debs/Packages）
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends datacenter-gpu-manager-4-cuda13 || true
+      # libnvidia-nscq（DCGM 查 NVSwitch 用；若已放入离线仓库则自动装对版本）
+      NSCQ=$(grep "^Package: libnvidia-nscq" /cdrom/debs/Packages | cut -d" " -f2 | sort -u | head -1)
+      [ -n "$NSCQ" ] && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$NSCQ" || true
+      '
+    - curtin in-target --target=/target -- bash -c "systemctl daemon-reload"
+    - curtin in-target --target=/target -- bash -c "systemctl enable nvidia-fabricmanager"
+
+    # 安装华为存储依赖
+    #- curtin in-target --target=/target -- dpkg -i /cdrom/debs/huawei/*.deb
+    #- curtin in-target --target=/target -- ln -s /usr/bin/python3 /usr/bin/python
+
+    # 网卡重命名
+    # 生成管理网 udev 规则（CX5/CX6 双口 -> eth0/eth1）
+    # 脚本内嵌在 user-data 里，改脚本只需要改 user-data，不重封 ISO
+    - |
+      tee /target/generate-doca-management-udev.py >/dev/null <<'PYEOF'
+      #!/usr/bin/env python3
+      """Generate management-network udev rules for dual-port CX5/CX6 and USB NIC disable."""
+
+      from __future__ import annotations
+
+      import argparse
+      import re
+      import subprocess
+      import sys
+      from pathlib import Path
+
+
+      def run(cmd: list[str]) -> str:
+          proc = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          if proc.returncode != 0:
+              raise RuntimeError(f"{' '.join(cmd)} failed: {proc.stderr.strip()}")
+          return proc.stdout
+
+
+      def bdf_for_netdev(name: str) -> str | None:
+          device = Path("/sys/class/net") / name / "device"
+          try:
+              return device.resolve().name
+          except FileNotFoundError:
+              return None
+
+
+      def discover_base_from_netplan() -> str | None:
+          netplan_dir = Path("/etc/netplan")
+          for path in sorted(list(netplan_dir.glob("*.yaml")) + list(netplan_dir.glob("*.yml"))):
+              text = path.read_text(errors="ignore")
+              if "to: default" not in text:
+                  continue
+              for match in re.finditer(r"interfaces:\s*\[([^\]]+)\]", text):
+                  names = [item.strip().strip("'\"") for item in match.group(1).split(",")]
+                  bdfs = [bdf_for_netdev(name) for name in names]
+                  bdfs = [bdf for bdf in bdfs if bdf]
+                  bases: dict[str, set[str]] = {}
+                  for bdf in bdfs:
+                      bdf_match = re.match(r"^(.+)\.([01])$", bdf)
+                      if bdf_match:
+                          bases.setdefault(bdf_match.group(1), set()).add(bdf_match.group(2))
+                  for base, funcs in sorted(bases.items()):
+                      if {"0", "1"} <= funcs:
+                          return base
+          return None
+
+
+      def discover_base() -> str:
+          netplan_base = discover_base_from_netplan()
+          if netplan_base:
+              return netplan_base
+
+          groups: dict[str, set[str]] = {}
+          output = run(["lspci", "-D"])
+          for line in output.splitlines():
+              if "Mellanox" not in line:
+                  continue
+              if not ("ConnectX-5" in line or "ConnectX-6" in line or "CX5" in line or "CX6" in line):
+                  continue
+              bdf = line.split()[0]
+              match = re.match(r"^(.+)\.([01])$", bdf)
+              if not match:
+                  continue
+              groups.setdefault(match.group(1), set()).add(match.group(2))
+
+          candidates = sorted(base for base, funcs in groups.items() if {"0", "1"} <= funcs)
+          if not candidates:
+              raise RuntimeError("no dual-port ConnectX-5/ConnectX-6 pair found")
+          return candidates[0]
+
+
+      def generate_rules(base: str, usb_name: str, usb_mac: str | None) -> str:
+          disable_cmd = "/usr/local/sbin/doca-disable-usb-netdev.sh %k"
+          lines = [
+              "# =============================================================================",
+              "# 81-management-net.rules",
+              "# Generated management-network names.",
+              "# =============================================================================",
+              "",
+              f'ACTION=="add", KERNELS=="{base}.0", SUBSYSTEM=="net", NAME="eth0"',
+              f'ACTION=="add", KERNELS=="{base}.1", SUBSYSTEM=="net", NAME="eth1"',
+              "",
+              "# Hide USB management adapters from the OS by unbinding their net driver.",
+              f'ACTION=="add", SUBSYSTEM=="net", KERNEL=="enx*", RUN+="{disable_cmd}"',
+              f'ACTION=="add", SUBSYSTEM=="net", KERNEL=="{usb_name}", RUN+="{disable_cmd}"',
+          ]
+          if usb_mac:
+              lines.append(
+                  f'ACTION=="add", SUBSYSTEM=="net", ATTR{{address}}=="{usb_mac}", RUN+="{disable_cmd}"'
+              )
+          return "\n".join(lines)
+
+
+      def main() -> int:
+          parser = argparse.ArgumentParser()
+          parser.add_argument("-o", "--output", default="/etc/udev/rules.d/81-management-net.rules")
+          parser.add_argument("--base-bdf", help="BDF prefix without function, for example 0001:8b:00")
+          parser.add_argument("--usb-name", default="enx928a311d8f2e")
+          parser.add_argument("--usb-mac", default="92:8a:31:1d:8f:2e")
+          args = parser.parse_args()
+
+          base = args.base_bdf or discover_base()
+          rules = generate_rules(base, args.usb_name, args.usb_mac)
+
+          if args.output == "-":
+              print(rules)
+          else:
+              output = Path(args.output)
+              desired = rules + "\n"
+              if output.exists() and output.read_text() == desired:
+                  print(f"OK {args.output} already up to date")
+              else:
+                  output.write_text(desired)
+                  print(f"CHANGED written {args.output}")
+              print(f"eth0 -> {base}.0")
+              print(f"eth1 -> {base}.1")
+          return 0
+
+
+      if __name__ == "__main__":
+          try:
+              raise SystemExit(main())
+          except Exception as exc:
+              print(f"ERROR: {exc}", file=sys.stderr)
+              raise SystemExit(1)
+      PYEOF
+    - curtin in-target --target=/target -- bash -c "python3 /generate-doca-management-udev.py || true"
+    #- askdflas
+    # - |
+    #   curtin in-target --target=/target -- bash -c '
+    #   netplan apply
+    #   '
+    # ipmi 配置脚本，写入 /target/config_ipmi.sh，安装完成后用户可以直接运行这个脚本进行 IPMI 配置
+    - |
+      tee /target/config_ipmi.sh >/dev/null <<'PYIPMI'
+      #!/bin/bash
+
+      # ==========================================
+      # 脚本名称: config_ipmi.sh
+      # 描述: 一键配置 IPMI (带外) -
+      # ==========================================
+
+      # 检查是否输入了 IP 地址
+      if [ -z "$1" ]; then
+          echo "错误: 请提供目标 IP 地址！"
+          echo "用法: $0 <IP地址> (例如: $0 10.0.0.50)"
+          exit 1
+      fi
+
+      # 变量配置
+      IPMI_IP="$1"
+      IPMI_NETMASK="255.255.248.0"
+      IPMI_GATEWAY="10.0.7.254"
+      USER_ID=2
+      NEW_PASSWORD="Admin@123+"
+
+      echo "----------------------------------------"
+      echo "开始配置 IPMI (带外网络)..."
+      echo "----------------------------------------"
+
+      # 1. 设置网络模式为静态 (Static)
+      echo "[1/4] 正在将带外模式修改为静态 (Static)..."
+      ipmitool lan set 1 ipsrc static || { echo "错误: 修改静态模式失败！"; exit 1; }
+      echo "等待 5 秒让 BMC 响应..."
+      sleep 5
+
+      # 2. 配置网络参数（每一步后都强制等待 5 秒，防止 BMC 芯片高并发下漏指令）
+      echo "[2/4] 正在配置网络参数 (IP: $IPMI_IP)..."
+      ipmitool lan set 1 ipaddr "$IPMI_IP"
+      echo "IP 写入中，等待 5 秒..."
+      sleep 5
+
+      ipmitool lan set 1 netmask "$IPMI_NETMASK"
+      echo "掩码 写入中，等待 5 秒..."
+      sleep 5
+
+      ipmitool lan set 1 defgw ipaddr "$IPMI_GATEWAY"
+      echo "网关 写入中，等待 5 秒..."
+      sleep 5
+
+      # 3. 修改第二个用户的密码
+      echo "[3/4] 正在修改第二个用户的密码..."
+      ipmitool user set password "$USER_ID" "$NEW_PASSWORD" || { echo "错误: 修改密码失败！"; exit 1; }
+      echo "密码 写入中，等待 5 秒..."
+      sleep 5
+
+      # 4. 读取当前 BMC 状态并进行最终校验
+      echo "[4/4] 正在进行最终状态校验..."
+
+      # 获取当前的局域网配置信息
+      LAN_INFO=$(ipmitool lan print 1)
+
+      # 定义校验函数，找不到匹配项就报错退出
+      check_config() {
+          local keyword="$1"
+          local expected_value="$2"
+          if ! echo "$LAN_INFO" | grep -F "$keyword" | grep -q "$expected_value"; then
+              echo "校验失败: $keyword 未能成功配置为 $expected_value !"
+              echo "当前 BMC 状态如下:"
+              echo "$LAN_INFO" | grep -E "IP Address|Subnet Mask|Default Gateway|IP Address Source"
+              exit 1
+          fi
+      }
+
+      # 开始逐项比对
+      check_config "IP Address Source" "Static"
+      check_config "IP Address  " "$IPMI_IP"       # 注意: ipmitool 输出中 IP Address 后面有两个空格
+      check_config "Subnet Mask" "$IPMI_NETMASK"
+      check_config "Default Gateway IP" "$IPMI_GATEWAY"
+
+      echo "所有网络配置校验通过！"
+
+      # 5. 执行 BMC 冷重启
+      echo "正在对 BMC (带外) 执行冷重启..."
+      ipmitool mc reset cold
+
+      echo "----------------------------------------"
+      echo "IPMI 配置及校验成功！BMC 正在重启，请等待 1-2 分钟后尝试连接。"
+      echo "----------------------------------------"
+      PYIPMI
+    # - curtin in-target --target=/target -- sudo wget -r -np -nH http://10.127.37.4/iso-ubuntu220405/configs/ -P /tmp
+    # - curtin in-target --target=/target -- sudo wget -r -np -nH http://10.127.37.4/iso-ubuntu220405/scripts/ -P /tmp
+    # - curtin in-target --target=/target -- sudo wget -r -np -nH http://10.127.37.4/iso-ubuntu220405/softwares/ -P /tmp
+    # - curtin in-target --target=/target -- sudo bash /tmp/iso-ubuntu220405/scripts/setup_ip.sh
+    # - curtin in-target --target=/target -- sudo bash /tmp/iso-ubuntu220405/scripts/setup_boot.sh
+    # - curtin in-target --target=/target -- echo "vmd" >>  /etc/initramfs-tools/modules
+    # - curtin in-target --target=/target -- echo "nvme" >>  /etc/initramfs-tools/modules
+    # - curtin in-target --target=/target -- sudo update-initramfs -u

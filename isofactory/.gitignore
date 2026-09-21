@@ -1,0 +1,22 @@
+# build artifacts
+frontend/node_modules/
+frontend/dist/
+backend/isofactory
+backend/data/
+/tmp/
+
+# produced ISOs and pack.sh work dirs (large, regenerable)
+template/new-ubuntu.iso
+template/ubuntu-files/
+template/ubuntu-files.old.*
+template/*.old.*
+
+# materialized-into-template inputs (symlinked/hardlinked per build from assets/)
+template/ubuntu*.iso
+template/drivers/
+
+# versioned asset store (large: base ISOs, cuda .run, ofed tgz — live on server)
+assets/
+
+# macOS
+.DS_Store

@@ -1,0 +1,37 @@
+# systemd unit for the IsoFactory backend.
+# Install: copy to /etc/systemd/system/, edit paths/user, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now isofactory
+#
+# The backend shells out to pack.sh which uses xorriso and (for driver builds)
+# runs md5sum/split over large files — give it a real working dir with disk space.
+[Unit]
+Description=IsoFactory ISO build backend
+After=network.target
+
+[Service]
+Type=simple
+# Run as a dedicated non-root user that can read/write the template dir.
+User=isofactory
+Group=isofactory
+# Absolute path to the built binary (build with: go build -o isofactory ./cmd/isofactory).
+# -assets points at the versioned store (base images auto-downloaded there);
+# -data holds job metadata/logs and per-job produced ISOs.
+ExecStart=/opt/isofactory/backend/isofactory -addr 127.0.0.1:8080 \
+    -template /opt/isofactory/template \
+    -assets /opt/isofactory/assets \
+    -data /opt/isofactory/backend/data
+WorkingDirectory=/opt/isofactory/backend
+Restart=on-failure
+RestartSec=3
+# Builds can be long; do not let systemd kill a running pack.sh.
+TimeoutStopSec=30
+
+# Basic hardening. The build materializes assets into template/ and downloads
+# base images into assets/, and persists jobs/ISOs into backend/data.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/isofactory/template /opt/isofactory/assets /opt/isofactory/backend/data
+
+[Install]
+WantedBy=multi-user.target
