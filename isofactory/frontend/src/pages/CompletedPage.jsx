@@ -23,15 +23,35 @@ export default function CompletedPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <Card>
         <CardHeader title="已完成镜像" description="构建成功、可直接下载的 ISO" />
-        <CardBody className="space-y-2">
-          {jobs.length === 0 && <p className="text-sm text-muted-foreground">暂无已完成的镜像</p>}
-          {jobs.map(j => (
-            <div key={j.id} className="flex flex-wrap items-center gap-3 rounded-md border p-4">
-              <span className="font-mono text-sm">{j.output_name || j.id}</span>
-              <span className="text-xs text-muted-foreground">{j.finished || j.queued}</span>
-              <a className="btn-primary ml-auto h-8 px-3 text-xs" href={downloadURL(j.id)}>下载 ISO</a>
+        <CardBody>
+          {jobs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">暂无已完成的镜像</p>
+          ) : (
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-secondary/50 text-left text-xs text-muted-foreground">
+                    <th className="px-4 py-2.5 font-medium">ISO 名称</th>
+                    <th className="px-4 py-2.5 font-medium">任务 ID</th>
+                    <th className="px-4 py-2.5 font-medium">完成时间</th>
+                    <th className="px-4 py-2.5 text-right font-medium">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.map(j => (
+                    <tr key={j.id} className="border-b last:border-0 hover:bg-accent/40">
+                      <td className="px-4 py-2.5 font-mono">{j.output_name || j.id}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{j.id}</td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">{j.finished || j.queued}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <a className="btn-primary h-8 px-3 text-xs" href={downloadURL(j.id)}>下载 ISO</a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
+          )}
         </CardBody>
       </Card>
     </div>
