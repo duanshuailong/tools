@@ -77,4 +77,17 @@
     background: #0a0c10;
     color: #d6deeb;
   }
+
+  /* Indeterminate progress: a narrow segment sliding across the track.
+     Used when percent < 0 (e.g. apt downloads that can't report a clean %),
+     so it reads as "working" instead of a full/finished bar. */
+  .progress-indeterminate {
+    width: 40%;
+    animation: progress-slide 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes progress-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
 }

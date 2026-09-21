@@ -71,10 +71,14 @@ export function Badge({ status, children }) {
 export function Progress({ percent, indeterminate }) {
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-      <div
-        className={`h-full rounded-full bg-primary transition-all duration-500 ${indeterminate ? 'animate-pulse' : ''}`}
-        style={{ width: indeterminate ? '100%' : `${Math.max(0, Math.min(100, percent))}%`, opacity: indeterminate ? 0.5 : 1 }}
-      />
+      {indeterminate ? (
+        <div className="progress-indeterminate h-full rounded-full bg-primary" />
+      ) : (
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-500"
+          style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+        />
+      )}
     </div>
   )
 }
