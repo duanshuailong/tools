@@ -226,7 +226,8 @@ func (b *Builder) Run(ctx context.Context, sel assets.Selection, logOut io.Write
 	if (sel.NVDriver != "" || sel.NVToolkit != "") && b.NV != nil {
 		rep.Report(progress.Update{Phase: progress.PhaseDownloading, Percent: -1, Message: "下载 NVIDIA 驱动 / CUDA (apt)"})
 		fmt.Fprintf(logOut, "downloading NVIDIA apt packages: driver=%q toolkit=%q\n", sel.NVDriver, sel.NVToolkit)
-		dir, err := b.NV.DownloadSync(ctx, NVSelection{Driver: sel.NVDriver, Toolkit: sel.NVToolkit}, logOut)
+		pw := progress.NewAptProgressWriter(logOut, rep, progress.PhaseDownloading, "下载 NVIDIA 驱动 / CUDA")
+		dir, err := b.NV.DownloadSync(ctx, NVSelection{Driver: sel.NVDriver, Toolkit: sel.NVToolkit}, pw)
 		if err != nil {
 			return "", cleanup, fmt.Errorf("download NVIDIA apt packages: %w", err)
 		}
@@ -236,7 +237,8 @@ func (b *Builder) Run(ctx context.Context, sel assets.Selection, logOut io.Write
 	if len(sel.ToolGroups) > 0 && b.Tools != nil {
 		rep.Report(progress.Update{Phase: progress.PhaseDownloading, Percent: -1, Message: "下载常用工具包"})
 		fmt.Fprintf(logOut, "ensuring tool-package groups: %v\n", sel.ToolGroups)
-		dirs, err := b.Tools.EnsureGroupsSync(ctx, sel.ToolGroups, logOut)
+		pw := progress.NewAptProgressWriter(logOut, rep, progress.PhaseDownloading, "下载常用工具包")
+		dirs, err := b.Tools.EnsureGroupsSync(ctx, sel.ToolGroups, pw)
 		if err != nil {
 			return "", cleanup, fmt.Errorf("ensure tool packages: %w", err)
 		}
@@ -248,7 +250,8 @@ func (b *Builder) Run(ctx context.Context, sel assets.Selection, logOut io.Write
 	if sel.OFEDSource == "doca" && b.DOCA != nil {
 		rep.Report(progress.Update{Phase: progress.PhaseDownloading, Percent: -1, Message: "下载 DOCA-OFED"})
 		fmt.Fprintln(logOut, "downloading DOCA-OFED stack (apt)")
-		dir, err := b.DOCA.DownloadSync(ctx, logOut)
+		pw := progress.NewAptProgressWriter(logOut, rep, progress.PhaseDownloading, "下载 DOCA-OFED")
+		dir, err := b.DOCA.DownloadSync(ctx, pw)
 		if err != nil {
 			return "", cleanup, fmt.Errorf("download DOCA-OFED: %w", err)
 		}
