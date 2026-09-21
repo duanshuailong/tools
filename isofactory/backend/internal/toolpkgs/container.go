@@ -15,6 +15,10 @@ import (
 // than the build host's. Output lands in /out (bind-mounted to the cache dir)
 // and is chowned back to the host user afterward.
 //
+// The apt mirror uses http:// (not https): the base ubuntu:<ver> image ships no
+// ca-certificates, and deb integrity is guaranteed by the repo GPG signature
+// regardless of transport — the traditional apt trust model.
+//
 // The closure is resolved the same way as the host path (apt-cache depends,
 // keep top-level lines, drop virtual "<...>" packages and arch suffixes) but
 // against the container's apt index. Downloaded files are owned by root inside
@@ -23,7 +27,7 @@ const containerScriptTmpl = `set -e
 export DEBIAN_FRONTEND=noninteractive
 cat > /etc/apt/sources.list.d/ubuntu.sources <<SRCEOF
 Types: deb
-URIs: https://mirrors.aliyun.com/ubuntu/
+URIs: http://mirrors.aliyun.com/ubuntu/
 Suites: %[1]s %[1]s-updates %[1]s-backports %[1]s-security
 Components: main restricted universe multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
