@@ -68,12 +68,16 @@ func TestStoreISOMovesToPerJobPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dest, err := s.StoreISO("job-A", src)
+	dest, err := s.StoreISO("job-A", "ubuntu24.04.4.iso", src)
 	if err != nil {
 		t.Fatalf("StoreISO: %v", err)
 	}
-	if dest != s.ISOPathFor("job-A") {
-		t.Errorf("dest = %q, want %q", dest, s.ISOPathFor("job-A"))
+	if dest != s.ISOPathFor("job-A", "ubuntu24.04.4.iso") {
+		t.Errorf("dest = %q, want %q", dest, s.ISOPathFor("job-A", "ubuntu24.04.4.iso"))
+	}
+	// The stored file carries the meaningful output name, not the job id.
+	if filepath.Base(dest) != "ubuntu24.04.4.iso" {
+		t.Errorf("stored filename = %q, want ubuntu24.04.4.iso", filepath.Base(dest))
 	}
 	// Source is consumed, dest holds the content.
 	if _, err := os.Stat(src); !os.IsNotExist(err) {
@@ -84,15 +88,16 @@ func TestStoreISOMovesToPerJobPath(t *testing.T) {
 		t.Errorf("dest content = %q", got)
 	}
 
-	// A second job writing the same fixed source path must not overwrite job-A.
+	// A second job choosing the SAME output name must not overwrite job-A
+	// (per-job subdir keeps them separate).
 	if err := os.WriteFile(src, []byte("iso-B"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.StoreISO("job-B", src); err != nil {
+	if _, err := s.StoreISO("job-B", "ubuntu24.04.4.iso", src); err != nil {
 		t.Fatal(err)
 	}
-	a, _ := os.ReadFile(s.ISOPathFor("job-A"))
-	b, _ := os.ReadFile(s.ISOPathFor("job-B"))
+	a, _ := os.ReadFile(s.ISOPathFor("job-A", "ubuntu24.04.4.iso"))
+	b, _ := os.ReadFile(s.ISOPathFor("job-B", "ubuntu24.04.4.iso"))
 	if string(a) != "iso-A" || string(b) != "iso-B" {
 		t.Errorf("per-job isolation broken: A=%q B=%q", a, b)
 	}

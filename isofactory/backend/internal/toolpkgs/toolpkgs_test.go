@@ -34,7 +34,7 @@ func TestGroupByName(t *testing.T) {
 
 func TestCountDebs(t *testing.T) {
 	dir := t.TempDir()
-	grpDir := filepath.Join(dir, "base")
+	grpDir := filepath.Join(dir, "noble", "base")
 	if err := os.MkdirAll(grpDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -43,11 +43,28 @@ func TestCountDebs(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if got := countDebs(dir, "base"); got != 2 {
+	if got := countDebs(dir, "noble", "base"); got != 2 {
 		t.Errorf("countDebs = %d, want 2", got)
 	}
-	if got := countDebs(dir, "missing"); got != 0 {
+	if got := countDebs(dir, "noble", "missing"); got != 0 {
 		t.Errorf("countDebs(missing) = %d, want 0", got)
+	}
+}
+
+func TestCodenameFor(t *testing.T) {
+	cases := map[string]string{
+		"24.04.4": "noble",
+		"24.04":   "noble",
+		"26.04.1": "resolute",
+		"22.04.5": "jammy",
+		"25.10":   "questing",
+		"99.99":   "", // unknown
+		"garbage": "",
+	}
+	for in, want := range cases {
+		if got := CodenameFor(in); got != want {
+			t.Errorf("CodenameFor(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 

@@ -45,10 +45,28 @@ if ! command -v go >/dev/null 2>&1; then
 fi
 log "Go 版本：$(go version)"
 
+# ── 2b. Docker（跨版本工具包下载：为目标镜像版本在对应容器里解析+下载 deb）──
+# 在 26.04 主机上为 24.04 镜像下工具包时，须在 ubuntu:24.04 容器内解析依赖闭包，
+# 否则拿到 26.04 版本的 deb，离线装机依赖对不上。服务以非 root 跑，故须把
+# 服务用户加入 docker 组。幂等。
+if ! command -v docker >/dev/null 2>&1; then
+    log "安装 docker.io…"
+    apt-get install -y docker.io
+fi
+systemctl enable --now docker 2>/dev/null || true
+# 预拉常用目标版本镜像（可选，失败不阻断；构建期首次用到会自动拉）。
+for tag in ubuntu:24.04 ubuntu:22.04; do
+    docker image inspect "$tag" >/dev/null 2>&1 || docker pull "$tag" 2>/dev/null || log "警告：预拉 $tag 失败（构建期会自动拉）"
+done
+
 # ── 3. 专用用户 + 目录 ──────────────────────────────────────────────────
 if ! id "$APP_USER" >/dev/null 2>&1; then
     log "创建用户 $APP_USER…"
     useradd --system --create-home --shell /usr/sbin/nologin "$APP_USER"
+fi
+# 服务用户须能调用 docker（跨版本工具包下载用）。
+if getent group docker >/dev/null 2>&1; then
+    usermod -aG docker "$APP_USER"
 fi
 mkdir -p "$APP_DIR"
 

@@ -84,14 +84,17 @@ func (m *Manager) Start(name string) error {
 	m.st[name] = &Status{Group: name, State: StateDownloading, Started: now()}
 	m.mu.Unlock()
 
+	// Manual (non-build) downloads target the host's own release.
+	codename := HostCodename()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
-		err := m.d.Download(ctx, g, buf)
+		dir := filepath.Join(m.d.DebsDir, codename, name)
+		err := m.d.Download(ctx, g, dir, codename, buf)
 		m.mu.Lock()
 		s := m.st[name]
 		s.Finished = now()
-		s.DebCount = countDebs(m.d.DebsDir, name)
+		s.DebCount = countDebs(m.d.DebsDir, codename, name)
 		if err != nil {
 			s.State = StateFailed
 			s.Error = err.Error()
@@ -109,14 +112,15 @@ func (m *Manager) Start(name string) error {
 func (m *Manager) Statuses() []Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	codename := HostCodename()
 	var out []Status
 	for _, g := range DefaultGroups() {
 		if s, ok := m.st[g.Name]; ok {
 			cp := *s
-			cp.DebCount = countDebs(m.d.DebsDir, g.Name)
+			cp.DebCount = countDebs(m.d.DebsDir, codename, g.Name)
 			out = append(out, cp)
 		} else {
-			out = append(out, Status{Group: g.Name, State: StateIdle, DebCount: countDebs(m.d.DebsDir, g.Name)})
+			out = append(out, Status{Group: g.Name, State: StateIdle, DebCount: countDebs(m.d.DebsDir, codename, g.Name)})
 		}
 	}
 	return out
@@ -133,22 +137,29 @@ func (m *Manager) Log(name string) string {
 	return buf.String()
 }
 
-// EnsureGroupsSync downloads the named groups into their cache dirs (skipping
-// any already populated) and returns the per-group cache directories, so the
-// builder can hardlink them into a per-job workspace. A per-key lock serializes
-// concurrent same-group downloads while different groups proceed in parallel.
-func (m *Manager) EnsureGroupsSync(ctx context.Context, names []string, log io.Writer) ([]string, error) {
+// EnsureGroupsSync downloads the named groups for the target release's codename
+// into codename-scoped cache dirs (skipping any already populated) and returns
+// the per-group cache directories, so the builder can hardlink them into a
+// per-job workspace. Caching by codename means a 24.04 build and a 26.04 build
+// keep separate debs for the same group (no version cross-contamination). A
+// per-key lock serializes concurrent same-group+codename downloads while others
+// proceed in parallel. An empty codename falls back to the host's release.
+func (m *Manager) EnsureGroupsSync(ctx context.Context, codename string, names []string, log io.Writer) ([]string, error) {
+	if codename == "" {
+		codename = HostCodename()
+	}
 	var dirs []string
 	for _, name := range names {
 		g, ok := GroupByName(name)
 		if !ok {
 			continue // unknown group name — ignore rather than fail the build
 		}
-		dir := filepath.Join(m.d.DebsDir, name)
-		lk := m.lockKey(name)
+		dir := filepath.Join(m.d.DebsDir, codename, name)
+		key := codename + "/" + name
+		lk := m.lockKey(key)
 		lk.Lock()
-		if countDebs(m.d.DebsDir, name) == 0 {
-			if err := m.d.Download(ctx, g, log); err != nil {
+		if countDebs(m.d.DebsDir, codename, name) == 0 {
+			if err := m.d.Download(ctx, g, dir, codename, log); err != nil {
 				lk.Unlock()
 				return nil, err
 			}

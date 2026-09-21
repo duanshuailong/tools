@@ -61,16 +61,26 @@ func New(base string) (*Store, error) {
 	return &Store{dir: dir, isoDir: isoDir}, nil
 }
 
-// ISOPathFor returns the canonical per-job ISO path (may not exist yet).
-func (s *Store) ISOPathFor(id string) string {
-	return filepath.Join(s.isoDir, id+".iso")
+// ISOPathFor returns the canonical per-job ISO path for a given output filename
+// (may not exist yet). Each job's ISO lives in its own subdir isos/<id>/ so the
+// file can carry a meaningful name (e.g. ubuntu24.04.4-nvidia...-cuda...iso)
+// without two jobs that chose the same name colliding. A blank name falls back
+// to "<id>.iso".
+func (s *Store) ISOPathFor(id, name string) string {
+	if name == "" {
+		name = id + ".iso"
+	}
+	return filepath.Join(s.isoDir, id, name)
 }
 
-// StoreISO moves the freshly built ISO at srcPath to the per-job path and
-// returns it. A rename is used when possible; if src and dest are on different
-// filesystems it falls back to copy+remove.
-func (s *Store) StoreISO(id, srcPath string) (string, error) {
-	dest := s.ISOPathFor(id)
+// StoreISO moves the freshly built ISO at srcPath to the per-job path (named
+// after outputName) and returns it. A rename is used when possible; if src and
+// dest are on different filesystems it falls back to copy+remove.
+func (s *Store) StoreISO(id, outputName, srcPath string) (string, error) {
+	dest := s.ISOPathFor(id, outputName)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return "", err
+	}
 	if err := os.Rename(srcPath, dest); err == nil {
 		return dest, nil
 	}

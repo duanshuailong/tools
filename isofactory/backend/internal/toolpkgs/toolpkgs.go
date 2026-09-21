@@ -116,19 +116,30 @@ func resolveClosure(ctx context.Context, pkgs []string) ([]string, error) {
 	return out2, nil
 }
 
-// Download resolves and downloads a group's closure into DebsDir/<group>/. The
-// DebsDir here is the tool-package CACHE root — each group lands in its own
-// subdir and is reused across builds. No index is written; the builder
-// regenerates the offline index once per workspace after assembly.
-func (d *Downloader) Download(ctx context.Context, g Group, log io.Writer) error {
-	if !Available() {
-		return fmt.Errorf("apt not available on this host (tool-package download runs on the Linux server)")
-	}
-	dir := filepath.Join(d.DebsDir, g.Name)
+// Download resolves and downloads a group's closure into dir. When targetCodename
+// differs from the build host's release (e.g. building a 24.04/noble ISO on a
+// 26.04/resolute host), the resolve+download runs INSIDE an ubuntu:<ver>
+// container so the debs are the target release's versions, not the host's.
+// When they match (or the target is unknown), it uses the host apt directly.
+// No index is written; the builder regenerates the offline index per workspace.
+func (d *Downloader) Download(ctx context.Context, g Group, dir, targetCodename string, log io.Writer) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
+	host := HostCodename()
+	// Container path: target known, differs from host, docker + image available.
+	if targetCodename != "" && targetCodename != host && dockerAvailable() && imageTagForCodename(targetCodename) != "" {
+		return d.downloadInContainer(ctx, g, dir, targetCodename, log)
+	}
+
+	// Host path: target matches host (or unknown) — resolve+download on the host.
+	if !Available() {
+		return fmt.Errorf("apt not available on this host (tool-package download runs on the Linux server)")
+	}
+	if targetCodename != "" && targetCodename != host {
+		fmt.Fprintf(log, "warning: target %s != host %s but no container available; falling back to host apt (versions may not match)\n", targetCodename, host)
+	}
 	fmt.Fprintf(log, "resolving dependency closure for group %q (%d top-level packages)\n", g.Name, len(g.Packages))
 	closure, err := resolveClosure(ctx, g.Packages)
 	if err != nil {

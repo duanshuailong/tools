@@ -16,6 +16,7 @@ import (
 
 	"isofactory/internal/assets"
 	"isofactory/internal/progress"
+	"isofactory/internal/toolpkgs"
 )
 
 // Options mirror the environment variables pack.sh reads.
@@ -38,7 +39,7 @@ type NVDownloader interface {
 // cache directories to hardlink into the workspace. *toolpkgs.Manager satisfies
 // it; nil disables build-time tool-package download.
 type ToolDownloader interface {
-	EnsureGroupsSync(ctx context.Context, names []string, logOut io.Writer) ([]string, error)
+	EnsureGroupsSync(ctx context.Context, codename string, names []string, logOut io.Writer) ([]string, error)
 }
 
 // DOCADownloader fetches the DOCA-OFED stack (current OFED via NVIDIA DOCA apt
@@ -236,9 +237,10 @@ func (b *Builder) Run(ctx context.Context, sel assets.Selection, logOut io.Write
 
 	if len(sel.ToolGroups) > 0 && b.Tools != nil {
 		rep.Report(progress.Update{Phase: progress.PhaseDownloading, Percent: -1, Message: "下载常用工具包"})
-		fmt.Fprintf(logOut, "ensuring tool-package groups: %v\n", sel.ToolGroups)
+		codename := toolpkgs.CodenameFor(sel.SystemVersion)
+		fmt.Fprintf(logOut, "ensuring tool-package groups for %s (%s): %v\n", sel.SystemVersion, codename, sel.ToolGroups)
 		pw := progress.NewAptProgressWriter(logOut, rep, progress.PhaseDownloading, "下载常用工具包")
-		dirs, err := b.Tools.EnsureGroupsSync(ctx, sel.ToolGroups, pw)
+		dirs, err := b.Tools.EnsureGroupsSync(ctx, codename, sel.ToolGroups, pw)
 		if err != nil {
 			return "", cleanup, fmt.Errorf("ensure tool packages: %w", err)
 		}

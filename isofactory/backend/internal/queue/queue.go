@@ -276,7 +276,7 @@ func (q *Queue) run(job *Job) {
 	// THEN clean up the workspace (order matters — StoreISO reads from it).
 	if err == nil && q.store != nil {
 		q.setProgress(job.ID, progress.Update{Phase: progress.PhaseArchiving, Percent: -1, Message: "归档产物"})
-		if moved, mvErr := q.store.StoreISO(job.ID, iso); mvErr != nil {
+		if moved, mvErr := q.store.StoreISO(job.ID, job.OutputName, iso); mvErr != nil {
 			_, _ = io.WriteString(out, "warning: failed to archive ISO to per-job path: "+mvErr.Error()+"\n")
 		} else {
 			iso = moved
