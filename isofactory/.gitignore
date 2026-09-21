@@ -15,8 +15,10 @@ template/*.old.*
 template/ubuntu*.iso
 template/drivers/
 
-# versioned asset store (large: base ISOs, cuda .run, ofed tgz — live on server)
-assets/
+# versioned asset store (large: base ISOs, cuda .run, ofed tgz — live on server).
+# Anchored to the repo root so it does NOT match backend/internal/assets/ (a Go
+# package that must be committed).
+/assets/
 
 # macOS
 .DS_Store
